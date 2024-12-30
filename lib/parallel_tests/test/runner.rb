@@ -86,37 +86,39 @@ module ParallelTests
         end
 
         def process_in_batches(cmd, os_cmd_length_limit, tests)
+          return [cmd] if cmd.map(&:length).sum <= os_cmd_length_limit
+
           # Filter elements not starting with value in tests to retain in each batch
           split_elements = cmd.partition { |s| s.start_with?(tests) }
-          
+
           # elements that needs to be checked for length and sliced into batches
           non_retained_elements = split_elements.first
-        
+
           # common parameters for each batch
           retained_elements = split_elements.last
-        
+
           batches = []
           index = 0
           while index < non_retained_elements.length
             batch = retained_elements.dup
             total_length = batch.map(&:length).sum
-            total_length += batch.size # account for spaces between elements
-        
+            total_length += batch.size*3 # account for spaces between elements and double quotes
+
             while index < non_retained_elements.length
               current_element_length = non_retained_elements[index].length
-              current_element_length += 1 # account for spaces between elements
-        
+              current_element_length += 3 # account for spaces between elements and double quotes
+
               # Check if the current element can be added without exceeding the os cmd length limit
               break unless total_length + current_element_length <= os_cmd_length_limit
-        
+
               batch << non_retained_elements[index]
               total_length += current_element_length
               index += 1
             end
-        
+
             batches << batch
           end
-        
+
           batches
         end
 
@@ -134,9 +136,8 @@ module ParallelTests
 
           print_command(cmd, env) if report_process_command?(options) && !options[:serialize_stdout]
 
-          result = []
-          process_in_batches(cmd, 8191, options[:files].first).map do |subcmd|
-            result << execute_command_and_capture_output(env, subcmd, options)
+          result = process_in_batches(cmd, 8191, options[:files].first).map do |subcmd|
+            execute_command_and_capture_output(env, subcmd, options)
           end
 
           # combine the output of result array into a single Hash
